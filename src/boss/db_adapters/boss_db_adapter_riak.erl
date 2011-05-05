@@ -20,8 +20,9 @@ find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
     {ok, RiakDoc} = riakc_pb_socket:get(Conn, Bucket, Key),
     [Value|_] = riakc_obj:get_values(RiakDoc),
-    {struct, Data} = mochijson2:decode(Value),
-    apply(Type, new, Data).
+    Data = binary_to_term(Value),
+    Record = apply(Type, new, Data),
+    Record:id(Id).
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
@@ -46,28 +47,23 @@ delete(Conn, Id) ->
 save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = type_to_bucket_name(Type),
-    Attributes = case Record:id() of
+    PropList = [{K, V} || {K, V} <- Record:attributes(), not(is_id_attr(K))],
+    Key = case Record:id() of
         id ->
-            Key = undefined,
-            PropList = [{K, V} || {K, V} <- Record:attributes(), is_id_attr(K)];
+            undefined;
         DefinedId when is_list(DefinedId) ->
-            Key = list_to_binary(DefinedId),
-            Record:attributes()
+            list_to_binary(DefinedId)
     end,
-    Json = iolist_to_binary(mochijson2:encode({struct, Attributes})),
-    Object = riakc_obj:new(list_to_binary(Bucket), Key, Json,
-                           "application/json"),
-    ok = riakc_pb_socket:put(Conn, Object),
-    {ok, Record}.
+    Object = riakc_obj:new(list_to_binary(Bucket), Key, term_to_binary(PropList)),
+    case riakc_pb_socket:put(Conn, Object) of
+        ok -> {ok, Record};
+        {ok, NewKey} ->
+            Record:id(NewKey),
+            {ok, Record}
+    end.
 
 is_id_attr(AttrName) ->
     lists:suffix("_id", atom_to_list(AttrName)).
-
-list_to_proplist([], Acc) -> Acc;
-list_to_proplist([K,V|T], Acc) when is_list(K) ->
-    list_to_proplist(T, [{list_to_atom(K), V}|Acc]);
-list_to_proplist([K,V|T], Acc) when is_atom(K) ->
-    list_to_proplist(T, [{K, V}|Acc]).
 
 infer_type_from_id(Id) when is_list(Id) ->
     [Type, BossId] = string:tokens(Id, "-"),
