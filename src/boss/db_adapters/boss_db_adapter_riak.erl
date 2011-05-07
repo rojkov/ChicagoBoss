@@ -67,11 +67,11 @@ is_id_attr(AttrName) ->
 
 infer_type_from_id(Id) when is_list(Id) ->
     [Type, BossId] = string:tokens(Id, "-"),
-    {list_to_atom(Type), type_to_bucket(Type), BossId}.
+    {list_to_atom(Type), type_to_bucket(Type), list_to_binary(BossId)}.
 
 % Find bucket name from Boss type
 type_to_bucket(Type) ->
-    list_to_atom(type_to_bucket_name(Type)).
+    list_to_binary(type_to_bucket_name(Type)).
 
 type_to_bucket_name(Type) when is_atom(Type) ->
     type_to_bucket_name(atom_to_list(Type));
