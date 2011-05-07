@@ -22,7 +22,11 @@ find(Conn, Id) ->
     {ok, RiakDoc} = riakc_pb_socket:get(Conn, Bucket, Key),
     [Value|_] = riakc_obj:get_values(RiakDoc),
     Data = binary_to_term(Value),
-    Record = apply(Type, new, Data),
+    DummyRecord = apply(Type, new, lists:seq(1, proplists:get_value(new,
+                         Type:module_info(exports)))),
+    Record = apply(Type, new, lists:map(fun (AttrName) ->
+                    proplists:get_value(AttrName, Data)
+            end, DummyRecord:attribute_names())),
     Record:id(Id).
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
