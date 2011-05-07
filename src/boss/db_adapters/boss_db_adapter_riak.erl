@@ -10,6 +10,7 @@ start(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 8087),
     {ok, Conn} = riakc_pb_socket:start_link(Host, Port),
+    _ = application:start(crypto),
     {ok, Conn}.
 
 stop(Conn) ->
@@ -47,19 +48,18 @@ delete(Conn, Id) ->
 save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = type_to_bucket_name(Type),
-    PropList = [{K, V} || {K, V} <- Record:attributes(), not(is_id_attr(K))],
+    PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
     Key = case Record:id() of
         id ->
-            undefined;
+            unique_id_62();
         DefinedId when is_list(DefinedId) ->
-            list_to_binary(DefinedId)
+            DefinedId
     end,
-    Object = riakc_obj:new(list_to_binary(Bucket), Key, term_to_binary(PropList)),
+    Object = riakc_obj:new(list_to_binary(Bucket), list_to_binary(Key),
+                           term_to_binary(PropList)),
     case riakc_pb_socket:put(Conn, Object) of
-        ok -> {ok, Record};
-        {ok, NewKey} ->
-            Record:id(NewKey),
-            {ok, Record}
+        ok -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ Key)};
+        {ok, NewKey} -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ NewKey)}
     end.
 
 is_id_attr(AttrName) ->
@@ -77,3 +77,48 @@ type_to_bucket_name(Type) when is_atom(Type) ->
     type_to_bucket_name(atom_to_list(Type));
 type_to_bucket_name(Type) when is_list(Type) ->
     inflector:pluralize(Type).
+
+% Unique key generator (copy&pasted from riak_core_util.erl)
+% see https://github.com/basho/riak_core/blob/master/src/riak_core_util.erl#L131
+% for details.
+
+%% @spec integer_to_list(Integer :: integer(), Base :: integer()) ->
+%% string()
+%% @doc Convert an integer to its string representation in the given
+%% base. Bases 2-62 are supported.
+integer_to_list(I, 10) ->
+    erlang:integer_to_list(I);
+integer_to_list(I, Base)
+  when is_integer(I), is_integer(Base),Base >= 2, Base =< 1+$Z-$A+10+1+$z-$a ->
+    if I < 0 ->
+            [$-|integer_to_list(-I, Base, [])];
+       true ->
+            integer_to_list(I, Base, [])
+    end;
+integer_to_list(I, Base) ->
+    erlang:error(badarg, [I, Base]).
+
+%% @spec integer_to_list(integer(), integer(), string()) -> string()
+integer_to_list(I0, Base, R0) ->
+    D = I0 rem Base,
+    I1 = I0 div Base,
+    R1 = if D >= 36 ->
+                [D-36+$a|R0];
+            D >= 10 ->
+                [D-10+$A|R0];
+            true ->
+                [D+$0|R0]
+         end,
+    if I1 =:= 0 ->
+            R1;
+       true ->
+            integer_to_list(I1, Base, R1)
+    end.
+
+%% @spec unique_id_62() -> string()
+%% @doc Create a random identifying integer, returning its string
+%% representation in base 62.
+unique_id_62() ->
+    Rand = crypto:sha(term_to_binary({make_ref(), now()})),
+    <<I:160/integer>> = Rand,
+    integer_to_list(I, 62).
