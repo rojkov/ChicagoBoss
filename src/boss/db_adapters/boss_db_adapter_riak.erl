@@ -2,6 +2,7 @@
 -behaviour(boss_db_adapter).
 -export([start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
+-export([push/2, pop/2]).
 
 start() ->
     start([]).
@@ -66,8 +67,15 @@ save_record(Conn, Record) ->
         {ok, NewKey} -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ NewKey)}
     end.
 
+% These 2 functions are not part of the behaviour but are required for
+% tests to pass
+push(_Conn, _Depth) -> ok.
+
+pop(_Conn, _Depth) -> ok.
 is_id_attr(AttrName) ->
     lists:suffix("_id", atom_to_list(AttrName)).
+
+% Internal functions
 
 infer_type_from_id(Id) when is_list(Id) ->
     [Type, BossId] = string:tokens(Id, "-"),
