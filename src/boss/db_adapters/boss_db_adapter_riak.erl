@@ -32,10 +32,11 @@ find(Conn, Id) ->
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
-    [find(Conn, Id) || Id <- Keys].
+    [find(Conn, atom_to_list(Type) ++ "-" ++ binary_to_list(Id)) || Id <- Keys].
 
 count(Conn, Type, Conditions) ->
-    {error, notimplented}.
+    {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
+    length(Keys).
 
 counter(Conn, Id) ->
     {error, notimplemented}.
