@@ -83,7 +83,8 @@ save_record(Conn, Record) ->
         id ->
             unique_id_62();
         DefinedId when is_list(DefinedId) ->
-            DefinedId
+            [_, DefinedKey] = string:tokens(DefinedId, "-"),
+            DefinedKey
     end,
     Object = riakc_obj:new(list_to_binary(Bucket), list_to_binary(Key),
                            term_to_binary(PropList)),
@@ -97,8 +98,6 @@ save_record(Conn, Record) ->
 push(_Conn, _Depth) -> ok.
 
 pop(_Conn, _Depth) -> ok.
-is_id_attr(AttrName) ->
-    lists:suffix("_id", atom_to_list(AttrName)).
 
 % Internal functions
 
