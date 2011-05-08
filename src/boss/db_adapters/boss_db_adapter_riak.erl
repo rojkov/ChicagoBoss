@@ -4,6 +4,8 @@
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
+-define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+
 start() ->
     start([]).
 
@@ -32,11 +34,33 @@ find(Conn, Id) ->
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
-    [find(Conn, atom_to_list(Type) ++ "-" ++ binary_to_list(Id)) || Id <- Keys].
+    AllRecords = [find(Conn,
+                    atom_to_list(Type) ++ "-" ++ binary_to_list(Id)) || Id <-
+               Keys],
+    Records = case Conditions of
+        [{Key, 'gt', Value}] -> [Record || Record <- AllRecords, Record:Key() > Value];
+        _ -> AllRecords
+    end,
+    Sorted = if
+        is_atom(Sort) ->
+            lists:sort(fun (A, B) ->
+                        case SortOrder of
+                            num_ascending -> A:Sort() =< B:Sort();
+                            str_ascending -> A:Sort() =< B:Sort();
+                            num_descending -> A:Sort() > B:Sort();
+                            str_descending -> A:Sort() > B:Sort()
+                        end
+                end,
+                Records);
+        true -> Records
+    end,
+    case Max of
+        0 -> lists:nthtail(Skip, Sorted);
+        _ -> lists:sublist(Sorted, Skip + 1, Max)
+    end.
 
 count(Conn, Type, Conditions) ->
-    {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
-    length(Keys).
+    length(find(Conn, Type, Conditions, 0, 0, 0, 0)).
 
 counter(Conn, Id) ->
     {error, notimplemented}.
