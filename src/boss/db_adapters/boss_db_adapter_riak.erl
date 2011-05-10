@@ -81,6 +81,8 @@ save_record(Conn, Record) ->
     PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
     Key = case Record:id() of
         id ->
+            % TODO: The next release of Riak will support server-side ID
+            %       generating. Get rid of unique_id_62/0.
             unique_id_62();
         DefinedId when is_list(DefinedId) ->
             [_, DefinedKey] = string:tokens(DefinedId, "-"),
@@ -117,6 +119,8 @@ type_to_bucket_name(Type) when is_list(Type) ->
 % Unique key generator (copy&pasted from riak_core_util.erl)
 % see https://github.com/basho/riak_core/blob/master/src/riak_core_util.erl#L131
 % for details.
+% TODO: Get rid of this code when server-side ID generating is available
+%       in Riak.
 
 %% @spec integer_to_list(Integer :: integer(), Base :: integer()) ->
 %% string()
