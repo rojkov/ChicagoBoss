@@ -24,15 +24,18 @@ stop(Conn) ->
 
 find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
-    {ok, RiakDoc} = riakc_pb_socket:get(Conn, Bucket, Key),
-    [Value|_] = riakc_obj:get_values(RiakDoc),
-    Data = binary_to_term(Value),
-    DummyRecord = apply(Type, new, lists:seq(1, proplists:get_value(new,
-                         Type:module_info(exports)))),
-    Record = apply(Type, new, lists:map(fun (AttrName) ->
-                    proplists:get_value(AttrName, Data)
-            end, DummyRecord:attribute_names())),
-    Record:id(Id).
+    case riakc_pb_socket:get(Conn, Bucket, Key) of
+        {ok, RiakDoc} ->
+            [Value|_] = riakc_obj:get_values(RiakDoc),
+            Data = binary_to_term(Value),
+            DummyRecord = apply(Type, new, lists:seq(1, proplists:get_value(new,
+                                 Type:module_info(exports)))),
+            Record = apply(Type, new, lists:map(fun (AttrName) ->
+                            proplists:get_value(AttrName, Data)
+                    end, DummyRecord:attribute_names())),
+            Record:id(Id);
+        {error, notfound} -> {error, notfound}
+    end.
 
 % this is a stub just to make the tests runable
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
