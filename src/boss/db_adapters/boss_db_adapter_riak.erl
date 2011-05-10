@@ -34,6 +34,7 @@ find(Conn, Id) ->
             end, DummyRecord:attribute_names())),
     Record:id(Id).
 
+% this is a stub just to make the tests runable
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
     AllRecords = [find(Conn,
@@ -61,6 +62,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         _ -> lists:sublist(Sorted, Skip + 1, Max)
     end.
 
+% this is a stub just to make the tests runable
 count(Conn, Type, Conditions) ->
     length(find(Conn, Type, Conditions, 0, 0, 0, 0)).
 
