@@ -13,6 +13,8 @@ start(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 8087),
     {ok, Conn} = riakc_pb_socket:start_link(Host, Port),
+    % TODO: crypto is needed for unique_id_62/0. Remove it when
+    %       unique_id_62/0 is not needed.
     _ = application:start(crypto),
     {ok, Conn}.
 
