@@ -10,13 +10,12 @@ start() ->
     start([]).
 
 start(Options) ->
-    Host = proplists:get_value(db_host, Options, "localhost"),
-    Port = proplists:get_value(db_port, Options, 8087),
-    {ok, Conn} = riakc_pb_socket:start_link(Host, Port),
     % TODO: crypto is needed for unique_id_62/0. Remove it when
     %       unique_id_62/0 is not needed.
-    _ = application:start(crypto),
-    {ok, Conn}.
+    crypto:start(),
+    Host = proplists:get_value(db_host, Options, "localhost"),
+    Port = proplists:get_value(db_port, Options, 8087),
+    riakc_pb_socket:start_link(Host, Port).
 
 stop(Conn) ->
     riakc_pb_socket:stop(Conn),
@@ -34,17 +33,28 @@ find(Conn, Id) ->
                             proplists:get_value(AttrName, Data)
                     end, DummyRecord:attribute_names())),
             Record:id(Id);
-        {error, Reason} -> {error, Reason}
+        {error, Reason} ->
+            {error, Reason}
     end.
+
+find_acc(_, _, [], Acc) ->
+    lists:reverse(Acc);
+find_acc(Conn, Prefix, [Id | Rest], Acc) ->
+    case find(Conn, Prefix ++ binary_to_list(Id)) of
+        {error, Reason} ->
+            find_acc(Conn, Prefix, Rest, Acc);
+
+        Value ->
+            find_acc(Conn, Prefix, Rest, [Value | Acc])
+	end.
 
 % this is a stub just to make the tests runable
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     {ok, Keys} = riakc_pb_socket:list_keys(Conn, type_to_bucket_name(Type)),
-    AllRecords = [find(Conn,
-                    atom_to_list(Type) ++ "-" ++ binary_to_list(Id)) || Id <-
-               Keys],
+    AllRecords = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Records = case Conditions of
-        [{Key, 'gt', Value}] -> [Record || Record <- AllRecords, Record:Key() > Value];
+        [{Key, 'gt', Value}] -> [Record || Record <- AllRecords,
+                                 Record:Key() > Value];
         _ -> AllRecords
     end,
     Sorted = if
