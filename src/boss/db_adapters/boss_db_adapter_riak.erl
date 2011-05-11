@@ -34,7 +34,7 @@ find(Conn, Id) ->
                             proplists:get_value(AttrName, Data)
                     end, DummyRecord:attribute_names())),
             Record:id(Id);
-        {error, notfound} -> {error, notfound}
+        {error, Reason} -> {error, Reason}
     end.
 
 % this is a stub just to make the tests runable
