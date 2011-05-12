@@ -165,9 +165,15 @@ execute(Commands) ->
 save_record(Record) ->
     case validate_record(Record) of
         ok ->
-            {IsNew, OldRecord} = case find(Record:id()) of
-                {error, _Reason} -> {true, Record};
-                FoundOldRecord -> {false, FoundOldRecord}
+            RecordId = Record:id(),
+            {IsNew, OldRecord} = if
+                RecordId =:= 'id' ->
+                    {true, Record};
+                true ->
+                    case find(RecordId) of
+                        {error, _Reason} -> {true, Record};
+                        FoundOldRecord -> {false, FoundOldRecord}
+                    end
             end,
             boss_record_lib:run_before_hooks(Record, IsNew),
             case gen_server:call(boss_db, {save_record, Record}, ?DEFAULT_TIMEOUT) of
