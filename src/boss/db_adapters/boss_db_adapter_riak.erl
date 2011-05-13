@@ -96,20 +96,21 @@ save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = type_to_bucket_name(Type),
     PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
-    Key = case Record:id() of
+    {Key, Object} = case Record:id() of
         id ->
             % TODO: The next release of Riak will support server-side ID
             %       generating. Get rid of unique_id_62/0.
-            unique_id_62();
+            NewKey = unique_id_62(),
+            {NewKey, riakc_obj:new(list_to_binary(Bucket), list_to_binary(NewKey),
+                                   term_to_binary(PropList))};
         DefinedId when is_list(DefinedId) ->
             [_, DefinedKey] = string:tokens(DefinedId, "-"),
-            DefinedKey
+            {ok, ExistingObj} = riakc_pb_socket:get(Conn, Bucket, DefinedKey),
+            UpdatedObj = riakc_obj:update_value(ExistingObj, term_to_binary(PropList)),
+            {DefinedKey, UpdatedObj}
     end,
-    Object = riakc_obj:new(list_to_binary(Bucket), list_to_binary(Key),
-                           term_to_binary(PropList)),
     case riakc_pb_socket:put(Conn, Object) of
-        ok -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ Key)};
-        {ok, NewKey} -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ NewKey)}
+        ok -> {ok, Record:id(atom_to_list(Type) ++ "-" ++ Key)}
     end.
 
 % These 2 functions are not part of the behaviour but are required for
